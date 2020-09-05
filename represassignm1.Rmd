@@ -1,0 +1,78 @@
+---
+title: "Reproducible Research Assignment1"
+author: "Christian Andersen"
+date: "05 09 2020"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(stringr)
+library(lubridate)
+
+
+```
+
+## Loading and preparing the data
+
+
+```{r, echo=TRUE}
+urlzip <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+download.file(urlzip, destfile = "w2assignment.zip" )
+unzip("w2assignment.zip")                                
+actd <- read.csv("activity.csv",header=TRUE)
+actd <- actd %>% mutate(date=ymd(date))
+```
+
+## What is the mean total number of steps taken per day
+
+```{r, echo=TRUE}
+
+md <- actd %>% group_by(date) %>% summarise(sum=sum(steps,na.rm=FALSE))
+head(md)
+md %>% summarise(mean=mean(sum,na.rm=TRUE), median=median(sum,na.rm=TRUE))
+
+md %>% ggplot(aes(x=sum)) + geom_histogram(fill="cornsilk", colour="grey")
+```
+
+## What is the average daily activity pattern
+
+```{r, echo=TRUE}
+# timeseries plot
+mi <- actd %>% group_by(interval) %>% summarise(meansteps=mean(steps, na.rm=TRUE))
+head(mi)
+mi %>% ggplot(aes(x=interval, y=meansteps)) + geom_line()
+
+# which 5-minute interval contanis the maximum number of average steps over days
+mi$interval[which.max(mi$meansteps)]
+``` 
+## Imputing missing values
+
+```{r, echo=TRUE}
+actd %>% summarise(nan_rows=sum(is.na(steps)))
+# strategy: use means for interval of day to impute NAN values
+mean_int <- actd %>% group_by(interval) %>% summarise(mean=mean(steps, na.rm=TRUE))
+head(mean_int)
+actd2 <- left_join(actd, mean_int, by="interval")
+actd2$steps[is.na(actd2$steps)] <- actd2$mean[is.na(actd2$steps)]
+
+md <- actd2 %>% group_by(date) %>% summarise(sum=sum(steps,na.rm=FALSE))
+head(md)
+md %>% summarise(mean=mean(sum,na.rm=TRUE), median=median(sum,na.rm=TRUE))
+
+md %>% ggplot(aes(x=sum)) + geom_histogram(fill="cornsilk", colour="grey")
+``` 
+
+## Are there differences in activity pattern between weekdays and weekends
+
+```{r, echo=TRUE}
+actd <- actd %>% mutate(wd=wday(date), weekday=ifelse(wd %in% c("7","6"),"weekend","weekday"))
+table(actd$wd)
+
+mi <- actd %>% group_by(weekday, interval) %>% summarise(meansteps=mean(steps, na.rm=TRUE))
+
+mi %>% ggplot(aes(x=interval, y=meansteps)) + geom_line() + facet_grid(weekday ~.)
+```
+
